@@ -1,0 +1,534 @@
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local lp = Players.LocalPlayer
+
+-- Nome do arquivo para persistência local caso use executor
+local FILE_NAME = "SpawnCub_Playlist_V22.json"
+
+-- Limpeza de interfaces antigas para evitar sobreposição
+local oldGui = lp.PlayerGui:FindFirstChild("SpawnCubGui_V21") or lp.PlayerGui:FindFirstChild("SpawnCubGui_V22")
+if oldGui then oldGui:Destroy() end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "SpawnCubGui_V22"
+ScreenGui.Parent = lp.PlayerGui
+ScreenGui.ResetOnSpawn = false
+
+-- Configurações de Ativos e Cores
+local ID_TOGGLE = "rbxassetid://122557425331050"
+local ID_MOLDURA = "rbxassetid://100172158641091" 
+local ID_PLAY = "rbxassetid://139374730149050"
+local ID_PAUSE = "rbxassetid://79479421998352"
+local ID_ENGRENAGEM = "rbxassetid://122647049137802" -- Engrenagem Oficial
+
+local Color_BG = Color3.fromRGB(18, 18, 18)
+local Color_Card = Color3.fromRGB(28, 28, 28)
+
+local lastClick = 0
+local isPlaying = false
+local currentPlayingId = "" 
+local currentTab = 1 
+
+-- Tabela interna de músicas 
+local savedSongs = {}
+
+-- Função Segura para Carregar Playlist Salva
+local function loadPlaylist()
+    local success, result = pcall(function()
+        if readfile then
+            return readfile(FILE_NAME)
+        end
+    end)
+    
+    if success and result then
+        local decodeSuccess, decodedData = pcall(function()
+            return HttpService:JSONDecode(result)
+        end)
+        if decodeSuccess and type(decodedData) == "table" then
+            savedSongs = decodedData
+            return
+        end
+    end
+    savedSongs = {}
+end
+
+-- Função Segura para Salvar Playlist Localmente
+local function savePlaylist()
+    pcall(function()
+        if writefile then
+            local jsonString = HttpService:JSONEncode(savedSongs)
+            writefile(FILE_NAME, jsonString)
+        end
+    end)
+end
+
+-- Inicializa carregando os dados salvos anteriormente
+loadPlaylist()
+
+-------------------------------------------------------------------
+-- FUNÇÃO DE DISPARO - SINCRONIZAÇÃO DE ÁUDIO FE
+-------------------------------------------------------------------
+local function syncAllAudio(audioId)
+    local RE = ReplicatedStorage:WaitForChild("RE", 5)
+    if not RE then return end
+    
+    local idStr = tostring(audioId)
+    local isStopping = (idStr == "0" or idStr == "")
+
+    -- 1. CASAS
+    local houseEvent = RE:FindFirstChild("1Player1sHous1e")
+    if houseEvent then
+        houseEvent:FireServer("PickHouseMusicText", idStr, 4, true)
+        houseEvent:FireServer("PickHouseMusicText", idStr)
+    end
+
+    -- 2. CARROS
+    local carEvent = RE:FindFirstChild("1Player1sCa1r")
+    if carEvent then
+        if isStopping then
+            carEvent:FireServer("MusicStop", "", 4, true)
+            carEvent:FireServer("PickingCarMusicText", "")
+        else
+            carEvent:FireServer("MusicText", idStr, 4, true)
+            carEvent:FireServer("PickingCarMusicText", idStr)
+            carEvent:FireServer("PickingCarMusicText", idStr, 4, true)
+        end
+    end
+
+    -- 3. RÁDIO TOOL
+    local toolEvent = RE:FindFirstChild("PlayerToolEvent")
+    if toolEvent then
+        toolEvent:FireServer("ToolMusicText", idStr, 4, true)
+    end
+
+    -- 4. HOVERBOARD / SCOOTER
+    local bikeEvent = RE:FindFirstChild("1NoMoto1rVehicle1s")
+    if bikeEvent then
+        if isStopping then
+            bikeEvent:FireServer("PickingScooterMusicStop", "", 4, true)
+        else
+            bikeEvent:FireServer("PickingScooterMusicText", idStr, 4, true)
+        end
+    end
+
+    -- 5. PROPS (Caixa de som)
+    local propEvent = RE:FindFirstChild("Props")
+    if propEvent then
+        propEvent:FireServer("PropMusicText", idStr, 4, true)
+    end
+end
+
+-------------------------------------------------------------------
+-- ESTRUTURA PRINCIPAL DA INTERFACE (MAIN FRAME)
+-------------------------------------------------------------------
+local OpenBtn = Instance.new("ImageButton")
+OpenBtn.Size = UDim2.new(0, 60, 0, 60)
+OpenBtn.Position = UDim2.new(0, 20, 0.5, -30)
+OpenBtn.BackgroundTransparency = 1
+OpenBtn.Image = ID_TOGGLE
+OpenBtn.Parent = ScreenGui
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 260, 0, 380) 
+MainFrame.Position = UDim2.new(0.5, -130, 0.5, -190)
+MainFrame.BackgroundColor3 = Color_BG
+MainFrame.BorderSizePixel = 0
+MainFrame.Visible = false
+MainFrame.Active = true
+MainFrame.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 22)
+MainCorner.Parent = MainFrame
+
+-- Título Vertical Compartilhado
+local VerticalTitle = Instance.new("TextLabel")
+VerticalTitle.Size = UDim2.new(0, 300, 0, 30)
+VerticalTitle.AnchorPoint = Vector2.new(0.5, 0.5)
+VerticalTitle.Position = UDim2.new(1, -15, 0.5, 0) 
+VerticalTitle.BackgroundTransparency = 1
+VerticalTitle.Text = "SPAWNCUB"
+VerticalTitle.TextColor3 = Color3.new(1, 1, 1)
+VerticalTitle.TextSize = 22
+VerticalTitle.Font = Enum.Font.GothamBold
+VerticalTitle.Rotation = 90
+VerticalTitle.Parent = MainFrame
+
+-- INTERRUPTOR DE ABAS (Começa Grande [80x80] para fazer sentido com a primeira imagem)
+local TabToggleBtn = Instance.new("ImageButton")
+TabToggleBtn.Size = UDim2.new(0, 100, 0, 100) -- Tamanho ampliado solicitado para a primeira aba
+TabToggleBtn.Position = UDim2.new(1, -100, 1, -120) -- Alinhado perfeitamente no canto inferior direito
+TabToggleBtn.BackgroundTransparency = 1
+TabToggleBtn.Image = ID_ENGRENAGEM
+TabToggleBtn.ZIndex = 10
+TabToggleBtn.Parent = MainFrame
+
+-------------------------------------------------------------------
+-- DESIGN DA ABA 1: PLAYER PRINCIPAL
+-------------------------------------------------------------------
+local Tab1Frame = Instance.new("Frame")
+Tab1Frame.Size = UDim2.new(1, -30, 1, 0)
+Tab1Frame.Position = UDim2.new(0, 0, 0, 0)
+Tab1Frame.BackgroundTransparency = 1
+Tab1Frame.Visible = true
+Tab1Frame.Parent = MainFrame
+
+local ImageHolder = Instance.new("ImageLabel")
+ImageHolder.Size = UDim2.new(0, 150, 0, 150)
+ImageHolder.Position = UDim2.new(0.5, -75, 0, 35)
+ImageHolder.BackgroundTransparency = 1
+ImageHolder.Image = ID_MOLDURA 
+ImageHolder.Parent = Tab1Frame
+
+local IdInput = Instance.new("TextBox")
+IdInput.Size = UDim2.new(1, -10, 0, 40)
+IdInput.Position = UDim2.new(0, 5, 0, 195)
+IdInput.BackgroundTransparency = 1
+IdInput.Text = "Id (...)"
+IdInput.TextColor3 = Color3.fromRGB(150, 150, 150)
+IdInput.TextSize = 22
+IdInput.Font = Enum.Font.GothamBold
+IdInput.TextWrapped = true
+IdInput.ClearTextOnFocus = false
+IdInput.Parent = Tab1Frame
+
+local SubLabel = Instance.new("TextLabel")
+SubLabel.Size = UDim2.new(1, 0, 0, 45)
+SubLabel.Position = UDim2.new(0, 0, 0, 240)
+SubLabel.BackgroundTransparency = 1
+SubLabel.Text = "MÚSICAS FE\nSCRIPT"
+SubLabel.TextColor3 = Color3.new(1, 1, 1)
+SubLabel.TextSize = 15
+SubLabel.Font = Enum.Font.GothamBold
+SubLabel.Parent = Tab1Frame
+
+local PlayBtn = Instance.new("ImageButton")
+PlayBtn.Size = UDim2.new(0, 55, 0, 55)
+PlayBtn.Position = UDim2.new(0.5, -27, 0, 295)
+PlayBtn.BackgroundTransparency = 1
+PlayBtn.Image = ID_PLAY
+PlayBtn.Parent = Tab1Frame
+
+-------------------------------------------------------------------
+-- DESIGN DA ABA 2: PLAYLIST SONG
+-------------------------------------------------------------------
+local Tab2Frame = Instance.new("Frame")
+Tab2Frame.Size = UDim2.new(1, -30, 1, 0)
+Tab2Frame.Position = UDim2.new(0, 0, 0, 0)
+Tab2Frame.BackgroundTransparency = 1
+Tab2Frame.Visible = false
+Tab2Frame.Parent = MainFrame
+
+local PlaylistTitle = Instance.new("TextLabel")
+PlaylistTitle.Size = UDim2.new(0, 180, 0, 40)
+PlaylistTitle.Position = UDim2.new(0, 20, 0, 15)
+PlaylistTitle.BackgroundTransparency = 1
+PlaylistTitle.Text = "PlaylistSong"
+PlaylistTitle.TextColor3 = Color3.new(1, 1, 1)
+PlaylistTitle.TextSize = 26
+PlaylistTitle.Font = Enum.Font.GothamBold
+PlaylistTitle.TextXAlignment = Enum.TextXAlignment.Left
+PlaylistTitle.Parent = Tab2Frame
+
+-- Container com Rolagem
+local SongScroll = Instance.new("ScrollingFrame")
+SongScroll.Size = UDim2.new(1, -25, 0, 200)
+SongScroll.Position = UDim2.new(0, 18, 0, 60)
+SongScroll.BackgroundTransparency = 1
+SongScroll.BorderSizePixel = 0
+SongScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+SongScroll.ScrollBarThickness = 3
+SongScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 120, 120)
+SongScroll.Parent = Tab2Frame
+
+local ScrollLayout = Instance.new("UIListLayout")
+ScrollLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ScrollLayout.Padding = UDim.new(0, 8)
+ScrollLayout.Parent = SongScroll
+
+-- Painel de Inputs Inferior
+local InputContainer = Instance.new("Frame")
+InputContainer.Size = UDim2.new(1, -25, 0, 95)
+InputContainer.Position = UDim2.new(0, 18, 1, -115)
+InputContainer.BackgroundTransparency = 1
+InputContainer.Parent = Tab2Frame
+
+local NewIdInput = Instance.new("TextBox")
+NewIdInput.Size = UDim2.new(0.47, 0, 0, 35)
+NewIdInput.Position = UDim2.new(0, 0, 0, 0)
+NewIdInput.BackgroundColor3 = Color_Card
+NewIdInput.Text = "Novo ID"
+NewIdInput.TextColor3 = Color3.fromRGB(160, 160, 160)
+NewIdInput.Font = Enum.Font.GothamMedium
+NewIdInput.TextSize = 14
+NewIdInput.ClearTextOnFocus = false
+NewIdInput.Parent = InputContainer
+
+local NewIdCorner = Instance.new("UICorner")
+NewIdCorner.CornerRadius = UDim.new(0, 8)
+NewIdCorner.Parent = NewIdInput
+
+local NewNameInput = Instance.new("TextBox")
+NewNameInput.Size = UDim2.new(0.49, 0, 0, 35)
+NewNameInput.Position = UDim2.new(0.51, 0, 0, 0)
+NewNameInput.BackgroundColor3 = Color_Card
+NewNameInput.Text = "Nome"
+NewNameInput.TextColor3 = Color3.fromRGB(160, 160, 160)
+NewNameInput.Font = Enum.Font.GothamMedium
+NewNameInput.TextSize = 14
+NewNameInput.ClearTextOnFocus = false
+NewNameInput.Parent = InputContainer
+
+local NewNameCorner = Instance.new("UICorner")
+NewNameCorner.CornerRadius = UDim.new(0, 8)
+NewNameCorner.Parent = NewNameInput
+
+local SaveSongBtn = Instance.new("TextButton")
+SaveSongBtn.Size = UDim2.new(0.72, 0, 0, 40)
+SaveSongBtn.Position = UDim2.new(0, 0, 0, 45)
+SaveSongBtn.BackgroundColor3 = Color_Card
+SaveSongBtn.Text = "SALVAR MÚSICA NA PLAYLIST"
+SaveSongBtn.TextColor3 = Color3.new(1, 1, 1)
+SaveSongBtn.Font = Enum.Font.GothamBold
+SaveSongBtn.TextSize = 11
+SaveSongBtn.AutoButtonColor = true
+SaveSongBtn.Parent = InputContainer
+
+local SaveSongCorner = Instance.new("UICorner")
+SaveSongCorner.CornerRadius = UDim.new(0, 8)
+SaveSongCorner.Parent = SaveSongBtn
+
+-------------------------------------------------------------------
+-- REFRESH DA PLAYLIST (PLAY/PAUSE MUDANDO ÍCONES POR ID & DEL)
+-------------------------------------------------------------------
+local updatePlaylistVisual 
+
+updatePlaylistVisual = function()
+    for _, child in ipairs(SongScroll:GetChildren()) do
+        if child:IsA("Frame") then child:Destroy() end
+    end
+
+    for index, data in ipairs(savedSongs) do
+        local CardFrame = Instance.new("Frame")
+        CardFrame.Size = UDim2.new(1, -6, 0, 60)
+        CardFrame.BackgroundColor3 = Color_Card
+        CardFrame.BorderSizePixel = 0
+        CardFrame.Parent = SongScroll
+
+        local CardCorner = Instance.new("UICorner")
+        CardCorner.CornerRadius = UDim.new(0, 12)
+        CardCorner.Parent = CardFrame
+
+        local CardPlayBtn = Instance.new("ImageButton")
+        CardPlayBtn.Size = UDim2.new(0, 30, 0, 30)
+        CardPlayBtn.Position = UDim2.new(0, 12, 0.5, -15)
+        CardPlayBtn.BackgroundTransparency = 1
+        
+        if isPlaying and currentPlayingId == tostring(data.id) then
+            CardPlayBtn.Image = ID_PAUSE
+        else
+            CardPlayBtn.Image = ID_PLAY
+        end
+        CardPlayBtn.Parent = CardFrame
+
+        local SongNameLabel = Instance.new("TextLabel")
+        SongNameLabel.Size = UDim2.new(0.55, 0, 0, 20)
+        SongNameLabel.Position = UDim2.new(0, 52, 0, 20)
+        SongNameLabel.BackgroundTransparency = 1
+        SongNameLabel.Text = data.name
+        SongNameLabel.TextColor3 = Color3.new(1, 1, 1)
+        SongNameLabel.Font = Enum.Font.GothamBold
+        SongNameLabel.TextSize = 14
+        SongNameLabel.TextXAlignment = Enum.TextXAlignment.Left
+        SongNameLabel.Parent = CardFrame
+
+        local InfoLabel = Instance.new("TextLabel")
+        InfoLabel.Size = UDim2.new(0.55, 0, 0, 15)
+        InfoLabel.Position = UDim2.new(0, 52, 0, 6)
+        InfoLabel.BackgroundTransparency = 1
+        InfoLabel.Text = "Id (" .. data.id .. ")"
+        InfoLabel.TextColor3 = Color3.fromRGB(140, 140, 140)
+        InfoLabel.Font = Enum.Font.GothamMedium
+        InfoLabel.TextSize = 11
+        InfoLabel.TextXAlignment = Enum.TextXAlignment.Left
+        InfoLabel.Parent = CardFrame
+
+        local DurationLabel = Instance.new("TextLabel")
+        DurationLabel.Size = UDim2.new(0.55, 0, 0, 12)
+        DurationLabel.Position = UDim2.new(0, 52, 0, 40)
+        DurationLabel.BackgroundTransparency = 1
+        DurationLabel.Text = data.duration or "00:00"
+        DurationLabel.TextColor3 = Color3.fromRGB(100, 100, 100)
+        DurationLabel.Font = Enum.Font.GothamMedium
+        DurationLabel.TextSize = 10
+        DurationLabel.TextXAlignment = Enum.TextXAlignment.Left
+        DurationLabel.Parent = CardFrame
+
+        -- Botão "✕" BRANCO para remover a música
+        local DeleteBtn = Instance.new("TextButton")
+        DeleteBtn.Size = UDim2.new(0, 25, 0, 25)
+        DeleteBtn.Position = UDim2.new(1, -38, 0.5, -12)
+        DeleteBtn.BackgroundTransparency = 1
+        DeleteBtn.Text = "✕"
+        DeleteBtn.TextColor3 = Color3.new(1, 1, 1) 
+        DeleteBtn.Font = Enum.Font.GothamBold
+        DeleteBtn.TextSize = 16
+        DeleteBtn.AutoButtonColor = true
+        DeleteBtn.Parent = CardFrame
+
+        CardPlayBtn.MouseButton1Click:Connect(function()
+            local targetId = tostring(data.id)
+            
+            if isPlaying and currentPlayingId == targetId then
+                isPlaying = false
+                currentPlayingId = ""
+                PlayBtn.Image = ID_PLAY
+                syncAllAudio("0")
+            else
+                isPlaying = true
+                currentPlayingId = targetId
+                PlayBtn.Image = ID_PAUSE
+                IdInput.Text = "Id ("..targetId..")"
+                syncAllAudio(targetId)
+            end
+            updatePlaylistVisual()
+        end)
+
+        DeleteBtn.MouseButton1Click:Connect(function()
+            if currentPlayingId == tostring(data.id) then
+                isPlaying = false
+                currentPlayingId = ""
+                PlayBtn.Image = ID_PLAY
+                syncAllAudio("0")
+            end
+            
+            table.remove(savedSongs, index)
+            savePlaylist()
+            updatePlaylistVisual()
+        end)
+    end
+
+    SongScroll.CanvasSize = UDim2.new(0, 0, 0, ScrollLayout.AbsoluteContentSize.Y + 10)
+end
+
+updatePlaylistVisual()
+
+-------------------------------------------------------------------
+-- FUNCIONALIDADES DE ACESSOS E INTERAÇÃO
+-------------------------------------------------------------------
+
+-- LÓGICA DE TRANSIÇÃO DE TAMANHOS DA ENGRENAGEM POR ABA
+TabToggleBtn.MouseButton1Click:Connect(function()
+    if currentTab == 1 then
+        currentTab = 2
+        Tab1Frame.Visible = false
+        Tab2Frame.Visible = true
+        
+        -- Na Aba 2: Fica compacta para acomodar perfeitamente os botões da lista
+        TabToggleBtn.Size = UDim2.new(0, 45, 0, 45)
+        TabToggleBtn.Position = UDim2.new(1, -63, 1, -55)
+        
+        updatePlaylistVisual() 
+    else
+        currentTab = 1
+        Tab2Frame.Visible = false
+        Tab1Frame.Visible = true
+        
+        -- Na Aba 1: Volta a ficar GIGANTE e perfeitamente posicionada no canto inferior direito
+        TabToggleBtn.Size = UDim2.new(0, 80, 0, 80)
+        TabToggleBtn.Position = UDim2.new(1, -95, 1, -90)
+    end
+end)
+
+SaveSongBtn.MouseButton1Click:Connect(function()
+    local inputId = NewIdInput.Text:match("%d+")
+    local inputName = NewNameInput.Text
+    
+    if inputId and inputName ~= "" and inputName ~= "Nome" and inputName ~= "Novo ID" then
+        table.insert(savedSongs, {
+            id = inputId,
+            name = inputName,
+            duration = "00:00"
+        })
+        savePlaylist()
+        updatePlaylistVisual()
+        
+        NewIdInput.Text = "Novo ID"
+        NewIdInput.TextColor3 = Color3.fromRGB(160, 160, 160)
+        NewNameInput.Text = "Nome"
+        NewNameInput.TextColor3 = Color3.fromRGB(160, 160, 160)
+    end
+end)
+
+OpenBtn.MouseButton1Click:Connect(function()
+    local currentTime = tick()
+    if currentTime - lastClick < 0.3 then
+        syncAllAudio("0")
+        ScreenGui:Destroy()
+    else
+        MainFrame.Visible = not MainFrame.Visible
+    end
+    lastClick = currentTime
+end)
+
+PlayBtn.MouseButton1Click:Connect(function()
+    local audioId = IdInput.Text:match("%d+") or "0"
+    if not isPlaying then
+        isPlaying = true
+        currentPlayingId = tostring(audioId)
+        PlayBtn.Image = ID_PAUSE
+        syncAllAudio(audioId)
+    else
+        isPlaying = false
+        currentPlayingId = ""
+        PlayBtn.Image = ID_PLAY
+        syncAllAudio("0")
+    end
+end)
+
+-------------------------------------------------------------------
+-- SISTEMA DE PLACEHOLDERS INTERATIVOS (TEXTBOXES)
+-------------------------------------------------------------------
+local function configurePlaceholder(box, placeholderText)
+    box.Focused:Connect(function()
+        if box.Text == placeholderText then
+            box.Text = ""
+            box.TextColor3 = Color3.new(1, 1, 1)
+        end
+    end)
+    box.FocusLost:Connect(function()
+        if box.Text == "" then
+            box.Text = placeholderText
+            box.TextColor3 = Color3.fromRGB(150, 150, 150)
+        end
+    end)
+end
+
+configurePlaceholder(IdInput, "Id (...)")
+configurePlaceholder(NewIdInput, "Novo ID")
+configurePlaceholder(NewNameInput, "Nome")
+
+-------------------------------------------------------------------
+-- DRAGGABLE (ARRASTAR AS INTERFACES LIVREMENTE)
+-------------------------------------------------------------------
+local function makeDraggable(obj)
+    local dragging, dragStart, startPos
+    obj.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true; dragStart = input.Position; startPos = obj.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+        end
+    end)
+    UserInputService.InputChanged:Connect(function(input)
+        if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+            local delta = input.Position - dragStart
+            obj.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+        end
+    end)
+end
+
+makeDraggable(OpenBtn)
+makeDraggable(MainFrame)
