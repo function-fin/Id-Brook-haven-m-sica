@@ -1,9 +1,8 @@
-
 local Players, UIS, ReplicatedStorage, HttpService = game:GetService("Players"), game:GetService("UserInputService"), game:GetService("ReplicatedStorage"), game:GetService("HttpService")
 local lp, FILE_NAME = Players.LocalPlayer, "SpawnCub_Playlist_V22.json"
 
 -- Limpeza de instâncias antigas
-local oldGui = lp.PlayerGui:FindFirstChild("SpawnCubGui_V21") or lp.PlayerGui:FindFirstChild("SpawnCubGui_V22")
+local oldGui = lp.PlayerGui:FindFirstChild("SpawnCubGui_V22") or lp.PlayerGui:FindFirstChild("SpawnCubGui_V21")
 if oldGui then oldGui:Destroy() end
 
 local function Create(className, parent, properties)
@@ -15,6 +14,7 @@ end
 
 -- Configurações de Ativos, Cores e Estados
 local ID_TOGGLE, ID_MOLDURA, ID_PLAY, ID_PAUSE, ID_ENGRENAGEM = "rbxassetid://122557425331050", "rbxassetid://100172158641091", "rbxassetid://139374730149050", "rbxassetid://79479421998352", "rbxassetid://122647049137802"
+local ID_DELETE_X = "rbxassetid://98235327129327"
 local Color_BG, Color_Card, savedSongs = Color3.fromRGB(18, 18, 18), Color3.fromRGB(28, 28, 28), {}
 local lastClick, isPlaying, currentPlayingId, currentTab = 0, false, "", 1
 
@@ -34,7 +34,7 @@ local function syncAllAudio(audioId)
     local RE = ReplicatedStorage:WaitForChild("RE", 5) if not RE then return end
     local idStr, isStopping = tostring(audioId), (tostring(audioId) == "0" or tostring(audioId) == "")
     local events = {["1Player1sHous1e"] = {"PickHouseMusicText", idStr}, ["PlayerToolEvent"] = {"ToolMusicText", idStr, 4, true}, ["Props"] = {"PropMusicText", idStr, 4, true}}
-    
+
     for name, args in pairs(events) do
         local ev = RE:FindFirstChild(name)
         if ev then ev:FireServer(unpack(args)) if name == "1Player1sHous1e" then ev:FireServer(args[1], args[2], 4, true) end end
@@ -45,45 +45,51 @@ local function syncAllAudio(audioId)
     if bike then bike:FireServer(isStopping and "PickingScooterMusicStop" or "PickingScooterMusicText", isStopping and "" or idStr, 4, true) end
 end
 
--- Interfaces Principais
+-- Interfaces Principais (Tamanho diminuído de 260x380 para 240x350)
 local ScreenGui = Create("ScreenGui", lp.PlayerGui, {Name = "SpawnCubGui_V22", ResetOnSpawn = false})
 local OpenBtn = Create("ImageButton", ScreenGui, {Size = UDim2.new(0, 60, 0, 60), Position = UDim2.new(0, 20, 0.5, -30), BackgroundTransparency = 1, Image = ID_TOGGLE})
-local MainFrame = Create("Frame", ScreenGui, {Size = UDim2.new(0, 260, 0, 380), Position = UDim2.new(0.5, -130, 0.5, -190), BackgroundColor3 = Color_BG, BorderSizePixel = 0, Visible = false, Active = true})
-Create("UICorner", MainFrame, {CornerRadius = UDim.new(0, 22)})
-Create("TextLabel", MainFrame, {Size = UDim2.new(0, 300, 0, 30), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -15, 0.5, 0), BackgroundTransparency = 1, Text = "SPAWNCUB", TextColor3 = Color3.new(1,1,1), TextSize = 22, Font = Enum.Font.GothamBold, Rotation = 90})
-local TabToggleBtn = Create("ImageButton", MainFrame, {Size = UDim2.new(0, 100, 0, 100), Position = UDim2.new(1, -100, 1, -120), BackgroundTransparency = 1, Image = ID_ENGRENAGEM, ZIndex = 10})
+local MainFrame = Create("Frame", ScreenGui, {Size = UDim2.new(0, 240, 0, 350), Position = UDim2.new(0.5, -120, 0.5, -175), BackgroundColor3 = Color_BG, BorderSizePixel = 0, Visible = false, Active = true})
+Create("UICorner", MainFrame, {CornerRadius = UDim.new(0, 18)})
+
+-- Borda Fina Branca no MainFrame
+Create("UIStroke", MainFrame, {Color = Color3.new(1, 1, 1), Thickness = 1, ApplyStrokeMode = Enum.ApplyStrokeMode.Border})
+
+Create("TextLabel", MainFrame, {Size = UDim2.new(0, 300, 0, 30), AnchorPoint = Vector2.new(0.5, 0.5), Position = UDim2.new(1, -15, 0.5, 0), BackgroundTransparency = 1, Text = "SPAWNCUB", TextColor3 = Color3.new(1,1,1), TextSize = 20, Font = Enum.Font.GothamBold, Rotation = 90})
+local TabToggleBtn = Create("ImageButton", MainFrame, {Size = UDim2.new(0, 70, 0, 70), Position = UDim2.new(1, -75, 1, -85), BackgroundTransparency = 1, Image = ID_ENGRENAGEM, ZIndex = 10})
 
 -- Aba 1 Elements
 local Tab1Frame = Create("Frame", MainFrame, {Size = UDim2.new(1, -30, 1, 0), BackgroundTransparency = 1, Visible = true})
-Create("ImageLabel", Tab1Frame, {Size = UDim2.new(0, 150, 0, 150), Position = UDim2.new(0.5, -75, 0, 35), BackgroundTransparency = 1, Image = ID_MOLDURA})
-local IdInput = Create("TextBox", Tab1Frame, {Size = UDim2.new(1, -10, 0, 40), Position = UDim2.new(0, 5, 0, 195), BackgroundTransparency = 1, Text = "Id (...)", TextColor3 = Color3.fromRGB(150,150,150), TextSize = 22, Font = Enum.Font.GothamBold, TextWrapped = true, ClearTextOnFocus = false})
-Create("TextLabel", Tab1Frame, {Size = UDim2.new(1, 0, 0, 45), Position = UDim2.new(0, 0, 0, 240), BackgroundTransparency = 1, Text = "MÚSICAS FE\nSCRIPT", TextColor3 = Color3.new(1,1,1), TextSize = 15, Font = Enum.Font.GothamBold})
-local PlayBtn = Create("ImageButton", Tab1Frame, {Size = UDim2.new(0, 55, 0, 55), Position = UDim2.new(0.5, -27, 0, 295), BackgroundTransparency = 1, Image = ID_PLAY})
+Create("ImageLabel", Tab1Frame, {Size = UDim2.new(0, 130, 0, 130), Position = UDim2.new(0.5, -65, 0, 25), BackgroundTransparency = 1, Image = ID_MOLDURA})
+local IdInput = Create("TextBox", Tab1Frame, {Size = UDim2.new(1, -10, 0, 35), Position = UDim2.new(0, 5, 0, 170), BackgroundTransparency = 1, Text = "Id (...)", TextColor3 = Color3.fromRGB(150,150,150), TextSize = 20, Font = Enum.Font.GothamBold, TextWrapped = true, ClearTextOnFocus = false})
+Create("TextLabel", Tab1Frame, {Size = UDim2.new(1, 0, 0, 40), Position = UDim2.new(0, 0, 0, 210), BackgroundTransparency = 1, Text = "MÚSICAS FE\nSCRIPT", TextColor3 = Color3.new(1,1,1), TextSize = 14, Font = Enum.Font.GothamBold})
+local PlayBtn = Create("ImageButton", Tab1Frame, {Size = UDim2.new(0, 50, 0, 50), Position = UDim2.new(0.5, -25, 0, 265), BackgroundTransparency = 1, Image = ID_PLAY})
 
 -- Aba 2 Elements
 local Tab2Frame = Create("Frame", MainFrame, {Size = UDim2.new(1, -30, 1, 0), BackgroundTransparency = 1, Visible = false})
-Create("TextLabel", Tab2Frame, {Size = UDim2.new(0, 180, 0, 40), Position = UDim2.new(0, 20, 0, 15), BackgroundTransparency = 1, Text = "PlaylistSong", TextColor3 = Color3.new(1,1,1), TextSize = 26, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left})
-local SongScroll = Create("ScrollingFrame", Tab2Frame, {Size = UDim2.new(1, -25, 0, 200), Position = UDim2.new(0, 18, 0, 60), BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(0,0,0,0), ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(120,120,120)})
-local ScrollLayout = Create("UIListLayout", SongScroll, {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 8)})
-local InputContainer = Create("Frame", Tab2Frame, {Size = UDim2.new(1, -25, 0, 95), Position = UDim2.new(0, 18, 1, -115), BackgroundTransparency = 1})
-local NewIdInput = Create("TextBox", InputContainer, {Size = UDim2.new(0.47, 0, 0, 35), BackgroundColor3 = Color_Card, Text = "Novo ID", TextColor3 = Color3.fromRGB(160,160,160), Font = Enum.Font.GothamMedium, TextSize = 14, ClearTextOnFocus = false})
-local NewNameInput = Create("TextBox", InputContainer, {Size = UDim2.new(0.49, 0, 0, 35), Position = UDim2.new(0.51, 0, 0, 0), BackgroundColor3 = Color_Card, Text = "Nome", TextColor3 = Color3.fromRGB(160,160,160), Font = Enum.Font.GothamMedium, TextSize = 14, ClearTextOnFocus = false})
-local SaveSongBtn = Create("TextButton", InputContainer, {Size = UDim2.new(0.72, 0, 0, 40), Position = UDim2.new(0, 0, 0, 45), BackgroundColor3 = Color_Card, Text = "SALVAR MÚSICA NA PLAYLIST", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 11})
-Create("UICorner", NewIdInput, {CornerRadius = UDim.new(0, 8)}); Create("UICorner", NewNameInput, {CornerRadius = UDim.new(0, 8)}); Create("UICorner", SaveSongBtn, {CornerRadius = UDim.new(0, 8)})
+Create("TextLabel", Tab2Frame, {Size = UDim2.new(0, 180, 0, 35), Position = UDim2.new(0, 15, 0, 15), BackgroundTransparency = 1, Text = "PlaylistSong", TextColor3 = Color3.new(1,1,1), TextSize = 22, Font = Enum.Font.GothamBold, TextXAlignment = Enum.TextXAlignment.Left})
+local SongScroll = Create("ScrollingFrame", Tab2Frame, {Size = UDim2.new(1, -20, 0, 180), Position = UDim2.new(0, 15, 0, 55), BackgroundTransparency = 1, BorderSizePixel = 0, CanvasSize = UDim2.new(0,0,0,0), ScrollBarThickness = 3, ScrollBarImageColor3 = Color3.fromRGB(120,120,120)})
+local ScrollLayout = Create("UIListLayout", SongScroll, {SortOrder = Enum.SortOrder.LayoutOrder, Padding = UDim.new(0, 6)})
+local InputContainer = Create("Frame", Tab2Frame, {Size = UDim2.new(1, -20, 0, 85), Position = UDim2.new(0, 15, 1, -100), BackgroundTransparency = 1})
+local NewIdInput = Create("TextBox", InputContainer, {Size = UDim2.new(0.47, 0, 0, 30), BackgroundColor3 = Color_Card, Text = "Novo ID", TextColor3 = Color3.fromRGB(160,160,160), Font = Enum.Font.GothamMedium, TextSize = 13, ClearTextOnFocus = false})
+local NewNameInput = Create("TextBox", InputContainer, {Size = UDim2.new(0.49, 0, 0, 30), Position = UDim2.new(0.51, 0, 0, 0), BackgroundColor3 = Color_Card, Text = "Nome", TextColor3 = Color3.fromRGB(160,160,160), Font = Enum.Font.GothamMedium, TextSize = 13, ClearTextOnFocus = false})
+local SaveSongBtn = Create("TextButton", InputContainer, {Size = UDim2.new(1, 0, 0, 35), Position = UDim2.new(0, 0, 0, 40), BackgroundColor3 = Color_Card, Text = "SALVAR MÚSICA NA PLAYLIST", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 10})
+Create("UICorner", NewIdInput, {CornerRadius = UDim.new(0, 6)}); Create("UICorner", NewNameInput, {CornerRadius = UDim.new(0, 6)}); Create("UICorner", SaveSongBtn, {CornerRadius = UDim.new(0, 6)})
 
 -- Atualização Visual Dinâmica da Playlist
 local updatePlaylistVisual
 updatePlaylistVisual = function()
     for _, child in ipairs(SongScroll:GetChildren()) do if child:IsA("Frame") then child:Destroy() end end
     for index, data in ipairs(savedSongs) do
-        local Card = Create("Frame", SongScroll, {Size = UDim2.new(1, -6, 0, 60), BackgroundColor3 = Color_Card, BorderSizePixel = 0})
-        Create("UICorner", Card, {CornerRadius = UDim.new(0, 12)})
-        local CardPlay = Create("ImageButton", Card, {Size = UDim2.new(0, 30, 0, 30), Position = UDim2.new(0, 12, 0.5, -15), BackgroundTransparency = 1, Image = (isPlaying and currentPlayingId == tostring(data.id)) and ID_PAUSE or ID_PLAY})
-        Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 20), Position = UDim2.new(0, 52, 0, 20), BackgroundTransparency = 1, Text = data.name, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 14, TextXAlignment = Enum.TextXAlignment.Left})
-        Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 15), Position = UDim2.new(0, 52, 0, 6), BackgroundTransparency = 1, Text = "Id (" .. data.id .. ")", TextColor3 = Color3.fromRGB(140,140,140), Font = Enum.Font.GothamMedium, TextSize = 11, TextXAlignment = Enum.TextXAlignment.Left})
-        Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 12), Position = UDim2.new(0, 52, 0, 40), BackgroundTransparency = 1, Text = data.duration or "00:00", TextColor3 = Color3.fromRGB(100,100,100), Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left})
-        local DelBtn = Create("TextButton", Card, {Size = UDim2.new(0, 25, 0, 25), Position = UDim2.new(1, -38, 0.5, -12), BackgroundTransparency = 1, Text = "✕", TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 16})
+        local Card = Create("Frame", SongScroll, {Size = UDim2.new(1, -6, 0, 50), BackgroundColor3 = Color_Card, BorderSizePixel = 0})
+        Create("UICorner", Card, {CornerRadius = UDim.new(0, 10)})
+        local CardPlay = Create("ImageButton", Card, {Size = UDim2.new(0, 26, 0, 26), Position = UDim2.new(0, 10, 0.5, -13), BackgroundTransparency = 1, Image = (isPlaying and currentPlayingId == tostring(data.id)) and ID_PAUSE or ID_PLAY})
+        Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 18), Position = UDim2.new(0, 45, 0, 16), BackgroundTransparency = 1, Text = data.name, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left})
+        Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 14), Position = UDim2.new(0, 45, 0, 3), BackgroundTransparency = 1, Text = "Id (" .. data.id .. ")", TextColor3 = Color3.fromRGB(140,140,140), Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left})
+        Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 12), Position = UDim2.new(0, 45, 0, 33), BackgroundTransparency = 1, Text = data.duration or "00:00", TextColor3 = Color3.fromRGB(100,100,100), Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left})
         
+        -- Substituído por ImageButton com o ID X solicitado
+        local DelBtn = Create("ImageButton", Card, {Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(1, -30, 0.5, -10), BackgroundTransparency = 1, Image = ID_DELETE_X})
+
         CardPlay.MouseButton1Click:Connect(function()
             local targetId = tostring(data.id)
             isPlaying = not (isPlaying and currentPlayingId == targetId)
@@ -106,8 +112,8 @@ updatePlaylistVisual()
 TabToggleBtn.MouseButton1Click:Connect(function()
     currentTab = (currentTab == 1) and 2 or 1
     Tab1Frame.Visible, Tab2Frame.Visible = (currentTab == 1), (currentTab == 2)
-    TabToggleBtn.Size = (currentTab == 1) and UDim2.new(0, 80, 0, 80) or UDim2.new(0, 45, 0, 45)
-    TabToggleBtn.Position = (currentTab == 1) and UDim2.new(1, -95, 1, -90) or UDim2.new(1, -63, 1, -55)
+    TabToggleBtn.Size = (currentTab == 1) and UDim2.new(0, 70, 0, 70) or UDim2.new(0, 40, 0, 40)
+    TabToggleBtn.Position = (currentTab == 1) and UDim2.new(1, -75, 1, -85) or UDim2.new(1, -53, 1, -50)
     if currentTab == 2 then updatePlaylistVisual() end
 end)
 
