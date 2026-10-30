@@ -29,23 +29,53 @@ end
 local function savePlaylist() pcall(function() if writefile then writefile(FILE_NAME, HttpService:JSONEncode(savedSongs)) end end) end
 loadPlaylist()
 
--- Sincronização de Áudio FE
+-- Sincronização de Áudio FE (Atualizada para abranger caixas de som e ferramentas modificadas)
 local function syncAllAudio(audioId)
     local RE = ReplicatedStorage:WaitForChild("RE", 5) if not RE then return end
     local idStr, isStopping = tostring(audioId), (tostring(audioId) == "0" or tostring(audioId) == "")
-    local events = {["1Player1sHous1e"] = {"PickHouseMusicText", idStr}, ["PlayerToolEvent"] = {"ToolMusicText", idStr, 4, true}, ["Props"] = {"PropMusicText", idStr, 4, true}}
+    
+    -- Eventos atualizados cobrindo os nomes antigos e novos remotes
+    local events = {
+        ["1Player1sHous1e"] = {"PickHouseMusicText", idStr}, 
+        ["PlayerToolEvent"] = {"ToolMusicText", idStr, 4, true}, 
+        ["Props"] = {"PropMusicText", idStr, 4, true}
+    }
 
     for name, args in pairs(events) do
         local ev = RE:FindFirstChild(name)
-        if ev then ev:FireServer(unpack(args)) if name == "1Player1sHous1e" then ev:FireServer(args[1], args[2], 4, true) end end
+        if ev then 
+            ev:FireServer(unpack(args)) 
+            -- Disparos extras de segurança caso o remote exiba variações de argumentos
+            pcall(function()
+                if name == "PlayerToolEvent" then
+                    ev:FireServer("ToolMusicText", idStr)
+                elseif name == "1Player1sHous1e" then
+                    ev:FireServer(args[1], args[2], 4, true)
+                end
+            end)
+        end
     end
+
+    -- Suporte a Carros e Motos
     local car = RE:FindFirstChild("1Player1sCa1r")
-    if car then if isStopping then car:FireServer("MusicStop", "", 4, true) car:FireServer("PickingCarMusicText", "") else car:FireServer("MusicText", idStr, 4, true) car:FireServer("PickingCarMusicText", idStr) car:FireServer("PickingCarMusicText", idStr, 4, true) end end
+    if car then 
+        if isStopping then 
+            car:FireServer("MusicStop", "", 4, true) 
+            car:FireServer("PickingCarMusicText", "") 
+        else 
+            car:FireServer("MusicText", idStr, 4, true) 
+            car:FireServer("PickingCarMusicText", idStr) 
+            car:FireServer("PickingCarMusicText", idStr, 4, true) 
+        end 
+    end
+    
     local bike = RE:FindFirstChild("1NoMoto1rVehicle1s")
-    if bike then bike:FireServer(isStopping and "PickingScooterMusicStop" or "PickingScooterMusicText", isStopping and "" or idStr, 4, true) end
+    if bike then 
+        bike:FireServer(isStopping and "PickingScooterMusicStop" or "PickingScooterMusicText", isStopping and "" or idStr, 4, true) 
+    end
 end
 
--- Interfaces Principais (Tamanho diminuído de 260x380 para 240x350)
+-- Interfaces Principais
 local ScreenGui = Create("ScreenGui", lp.PlayerGui, {Name = "SpawnCubGui_V22", ResetOnSpawn = false})
 local OpenBtn = Create("ImageButton", ScreenGui, {Size = UDim2.new(0, 60, 0, 60), Position = UDim2.new(0, 20, 0.5, -30), BackgroundTransparency = 1, Image = ID_TOGGLE})
 local MainFrame = Create("Frame", ScreenGui, {Size = UDim2.new(0, 240, 0, 350), Position = UDim2.new(0.5, -120, 0.5, -175), BackgroundColor3 = Color_BG, BorderSizePixel = 0, Visible = false, Active = true})
@@ -86,8 +116,7 @@ updatePlaylistVisual = function()
         Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 18), Position = UDim2.new(0, 45, 0, 16), BackgroundTransparency = 1, Text = data.name, TextColor3 = Color3.new(1,1,1), Font = Enum.Font.GothamBold, TextSize = 13, TextXAlignment = Enum.TextXAlignment.Left})
         Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 14), Position = UDim2.new(0, 45, 0, 3), BackgroundTransparency = 1, Text = "Id (" .. data.id .. ")", TextColor3 = Color3.fromRGB(140,140,140), Font = Enum.Font.GothamMedium, TextSize = 10, TextXAlignment = Enum.TextXAlignment.Left})
         Create("TextLabel", Card, {Size = UDim2.new(0.55, 0, 0, 12), Position = UDim2.new(0, 45, 0, 33), BackgroundTransparency = 1, Text = data.duration or "00:00", TextColor3 = Color3.fromRGB(100,100,100), Font = Enum.Font.GothamMedium, TextSize = 9, TextXAlignment = Enum.TextXAlignment.Left})
-        
-        -- Substituído por ImageButton com o ID X solicitado
+
         local DelBtn = Create("ImageButton", Card, {Size = UDim2.new(0, 20, 0, 20), Position = UDim2.new(1, -30, 0.5, -10), BackgroundTransparency = 1, Image = ID_DELETE_X})
 
         CardPlay.MouseButton1Click:Connect(function()
